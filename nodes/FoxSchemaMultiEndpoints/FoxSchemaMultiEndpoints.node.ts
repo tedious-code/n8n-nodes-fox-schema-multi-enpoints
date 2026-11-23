@@ -31,12 +31,6 @@ export class FoxSchemaMultiEndpoints implements INodeType {
     },
     inputs: ['main'],
     outputs: ['main'],
-    credentials: [
-      {
-        name: 'foxSchemaApi',
-        required: false,
-      },
-    ],
     properties: [
       {
         displayName: 'Execution Mode',
@@ -182,36 +176,185 @@ export class FoxSchemaMultiEndpoints implements INodeType {
                 ],
               },
               {
-                displayName: 'Body Encoding',
-                name: 'bodyEncoding',
+                displayName: 'Send Body',
+                name: 'sendBody',
+                type: 'boolean',
+                default: false,
+                description: 'Whether to include a request body with this endpoint',
+              },
+              {
+                displayName: 'Body Content Type',
+                name: 'bodyContentType',
                 type: 'options',
                 displayOptions: {
                   show: {
-                    method: ['POST', 'PUT', 'PATCH', 'DELETE'],
+                    sendBody: [true],
                   },
                 },
                 options: [
                   { name: 'JSON', value: 'json' },
-                  { name: 'Raw / Text', value: 'raw' },
+                  { name: 'Form-Urlencoded', value: 'formUrlencoded' },
+                  { name: 'Raw / Text / XML / GraphQL', value: 'raw' },
                 ],
                 default: 'json',
+                description: 'Format of the request body',
               },
               {
-                displayName: 'Body Payload',
+                displayName: 'JSON Input Type',
+                name: 'bodyJsonType',
+                type: 'options',
+                displayOptions: {
+                  show: {
+                    sendBody: [true],
+                    bodyContentType: ['json'],
+                  },
+                },
+                options: [
+                  {
+                    name: 'JSON Editor / Expression',
+                    value: 'jsonEditor',
+                    description: 'Write raw JSON string or expression',
+                  },
+                  {
+                    name: 'Fields (Key-Value Builder)',
+                    value: 'fields',
+                    description: 'Add individual JSON fields',
+                  },
+                ],
+                default: 'jsonEditor',
+              },
+              {
+                displayName: 'JSON Payload',
                 name: 'bodyPayload',
                 type: 'string',
                 typeOptions: {
-                  rows: 4,
+                  rows: 5,
                 },
                 displayOptions: {
                   show: {
-                    method: ['POST', 'PUT', 'PATCH', 'DELETE'],
+                    sendBody: [true],
+                    bodyContentType: ['json'],
+                    bodyJsonType: ['jsonEditor'],
                   },
                 },
                 default: '',
-                placeholder: '{\n  "userId": "{{ $pipeline.auth.data.id }}"\n}',
+                placeholder:
+                  '{\n  "userId": "{{ $json.id }}",\n  "token": "{{ $pipeline.auth.data.token }}",\n  "items": {{ $pipeline.cart.data }}\n}',
                 description:
-                  'JSON payload or string to send with the request. Supports expressions like {{$pipeline.step1.data}}',
+                  'JSON payload to send with the request. Supports expressions like {{$pipeline.step1.data}}',
+              },
+              {
+                displayName: 'Body Fields',
+                name: 'bodyFields',
+                type: 'fixedCollection',
+                typeOptions: {
+                  multipleValues: true,
+                },
+                placeholder: 'Add Field',
+                displayOptions: {
+                  show: {
+                    sendBody: [true],
+                    bodyContentType: ['json'],
+                    bodyJsonType: ['fields'],
+                  },
+                },
+                default: {},
+                options: [
+                  {
+                    name: 'fieldValues',
+                    displayName: 'Field',
+                    values: [
+                      {
+                        displayName: 'Key',
+                        name: 'key',
+                        type: 'string',
+                        default: '',
+                      },
+                      {
+                        displayName: 'Type',
+                        name: 'type',
+                        type: 'options',
+                        options: [
+                          { name: 'String', value: 'string' },
+                          { name: 'Number', value: 'number' },
+                          { name: 'Boolean', value: 'boolean' },
+                          { name: 'Object / Array (JSON)', value: 'json' },
+                        ],
+                        default: 'string',
+                      },
+                      {
+                        displayName: 'Value',
+                        name: 'value',
+                        type: 'string',
+                        default: '',
+                      },
+                    ],
+                  },
+                ],
+              },
+              {
+                displayName: 'Form Fields',
+                name: 'formFields',
+                type: 'fixedCollection',
+                typeOptions: {
+                  multipleValues: true,
+                },
+                placeholder: 'Add Form Field',
+                displayOptions: {
+                  show: {
+                    sendBody: [true],
+                    bodyContentType: ['formUrlencoded'],
+                  },
+                },
+                default: {},
+                options: [
+                  {
+                    name: 'fieldValues',
+                    displayName: 'Field',
+                    values: [
+                      {
+                        displayName: 'Key',
+                        name: 'key',
+                        type: 'string',
+                        default: '',
+                      },
+                      {
+                        displayName: 'Value',
+                        name: 'value',
+                        type: 'string',
+                        default: '',
+                      },
+                    ],
+                  },
+                ],
+              },
+              {
+                displayName: 'Raw Content Type',
+                name: 'rawContentType',
+                type: 'string',
+                displayOptions: {
+                  show: {
+                    sendBody: [true],
+                    bodyContentType: ['raw'],
+                  },
+                },
+                default: 'text/plain',
+                placeholder: 'application/xml, application/graphql, etc.',
+              },
+              {
+                displayName: 'Raw Body',
+                name: 'rawBody',
+                type: 'string',
+                typeOptions: {
+                  rows: 5,
+                },
+                displayOptions: {
+                  show: {
+                    sendBody: [true],
+                    bodyContentType: ['raw'],
+                  },
+                },
+                default: '',
               },
               {
                 displayName: 'Continue on Fail',
@@ -381,14 +524,6 @@ export class FoxSchemaMultiEndpoints implements INodeType {
     const items = this.getInputData();
     const returnData: INodeExecutionData[] = [];
 
-    // Optional credentials
-    let creds: any = null;
-    try {
-      creds = await this.getCredentials('foxSchemaApi');
-    } catch {
-      // Optional, ignore if not configured
-    }
-
     for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
       try {
         const mode = this.getNodeParameter('mode', itemIndex, 'pipeline') as
@@ -407,16 +542,11 @@ export class FoxSchemaMultiEndpoints implements INodeType {
 
         // Construct Global Settings
         const globalSettings: GlobalPipeSettings = {
-          baseUrl: globalConfig.baseUrl || creds?.baseUrl || undefined,
-          authType: globalConfig.authType || (creds?.apiToken ? 'header' : 'none'),
+          baseUrl: globalConfig.baseUrl || undefined,
+          authType: globalConfig.authType || 'none',
           bearerToken: globalConfig.bearerToken,
-          headerAuthName:
-            globalConfig.headerAuthName || creds?.headerName || 'Authorization',
-          headerAuthValue:
-            globalConfig.headerAuthValue ||
-            (creds?.apiToken
-              ? `${creds.headerPrefix || ''}${creds.apiToken}`
-              : undefined),
+          headerAuthName: globalConfig.headerAuthName || 'Authorization',
+          headerAuthValue: globalConfig.headerAuthValue,
           basicAuthUser: globalConfig.basicAuthUser,
           basicAuthPass: globalConfig.basicAuthPass,
           delayBetweenStepsMs: globalConfig.delayBetweenStepsMs || 0,
@@ -427,20 +557,32 @@ export class FoxSchemaMultiEndpoints implements INodeType {
           'allAsObject') as OutputAggregationMode;
 
         // Normalize Endpoints
-        const endpoints: EndpointDefinition[] = rawEndpoints.map((ep, idx) => ({
-          alias: ep.alias ? ep.alias.trim() : `step_${idx + 1}`,
-          method: ep.method || 'GET',
-          url: ep.url || '',
-          dataPath: ep.dataPath || undefined,
-          headers: ep.headers?.headerValues || [],
-          queryParams: ep.queryParams?.paramValues || [],
-          bodyEncoding: ep.bodyEncoding || 'json',
-          bodyPayload: ep.bodyPayload || undefined,
-          continueOnFail: ep.continueOnFail === true,
-          timeoutMs: ep.timeoutMs || 30000,
-          retryAttempts: ep.retryAttempts || 0,
-          retryDelayMs: 500,
-        }));
+        const endpoints: EndpointDefinition[] = rawEndpoints.map((ep, idx) => {
+          let bodyPayload = ep.bodyPayload;
+          if (ep.bodyContentType === 'raw' && ep.rawBody) {
+            bodyPayload = ep.rawBody;
+          }
+
+          return {
+            alias: ep.alias ? ep.alias.trim() : `step_${idx + 1}`,
+            method: ep.method || 'GET',
+            url: ep.url || '',
+            dataPath: ep.dataPath || undefined,
+            headers: ep.headers?.headerValues || [],
+            queryParams: ep.queryParams?.paramValues || [],
+            sendBody: ep.sendBody === true,
+            bodyContentType: ep.bodyContentType || 'json',
+            bodyInputMethod: ep.bodyJsonType || 'jsonEditor',
+            bodyPayload: bodyPayload || undefined,
+            bodyFields: ep.bodyFields?.fieldValues || [],
+            formFields: ep.formFields?.fieldValues || [],
+            rawContentType: ep.rawContentType || 'text/plain',
+            continueOnFail: ep.continueOnFail === true,
+            timeoutMs: ep.timeoutMs || 30000,
+            retryAttempts: ep.retryAttempts || 0,
+            retryDelayMs: 500,
+          };
+        });
 
         if (endpoints.length === 0) {
           throw new NodeOperationError(

@@ -78,15 +78,39 @@ export async function executeSingleEndpoint(
 
   // 4. Resolve Body
   let resolvedBody: any = undefined;
-  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(endpoint.method) && endpoint.bodyPayload) {
-    const encoding = endpoint.bodyEncoding || 'json';
-    if (encoding === 'json') {
-      try {
-        // If string can be parsed as JSON, resolve templates on the parsed object
-        const parsed = JSON.parse(endpoint.bodyPayload);
-        resolvedBody = resolveTemplateValue(parsed, context);
-      } catch {
-        // Otherwise resolve directly on string then try to parse
+  const shouldSendBody =
+    endpoint.sendBody === true ||
+    (endpoint.sendBody === undefined &&
+      ['POST', 'PUT', 'PATCH', 'DELETE'].includes(endpoint.method) &&
+      (Boolean(endpoint.bodyPayload) ||
+        Boolean(endpoint.bodyFields?.length) ||
+        Boolean(endpoint.formFields?.length)));
+
+  if (shouldSendBody) {
+    const contentType = endpoint.bodyContentType || 'json';
+
+    if (contentType === 'json') {
+      if (endpoint.bodyInputMethod === 'fields' && endpoint.bodyFields && endpoint.bodyFields.length > 0) {
+        const bodyObj: Record<string, any> = {};
+        for (const f of endpoint.bodyFields) {
+          if (!f.key) continue;
+          const evaluated = resolveTemplateValue(f.value, context);
+          if (f.type === 'number') {
+            bodyObj[f.key] = Number(evaluated);
+          } else if (f.type === 'boolean') {
+            bodyObj[f.key] = String(evaluated).toLowerCase() === 'true';
+          } else if (f.type === 'json') {
+            try {
+              bodyObj[f.key] = typeof evaluated === 'string' ? JSON.parse(evaluated) : evaluated;
+            } catch {
+              bodyObj[f.key] = evaluated;
+            }
+          } else {
+            bodyObj[f.key] = evaluated;
+          }
+        }
+        resolvedBody = bodyObj;
+      } else if (endpoint.bodyPayload) {
         const strResolved = resolveTemplateValue(endpoint.bodyPayload, context);
         if (typeof strResolved === 'string') {
           try {
@@ -101,19 +125,40 @@ export async function executeSingleEndpoint(
       if (!resolvedHeaders['Content-Type'] && !resolvedHeaders['content-type']) {
         resolvedHeaders['Content-Type'] = 'application/json';
       }
-    } else {
-      resolvedBody = resolveTemplateValue(endpoint.bodyPayload, context);
+    } else if (contentType === 'formUrlencoded') {
+      const searchParams = new URLSearchParams();
+      if (endpoint.formFields && endpoint.formFields.length > 0) {
+        for (const item of endpoint.formFields) {
+          if (item.key) {
+            searchParams.append(item.key, String(resolveTemplateValue(item.value, context)));
+          }
+        }
+      }
+      resolvedBody = searchParams.toString();
+      if (!resolvedHeaders['Content-Type'] && !resolvedHeaders['content-type']) {
+        resolvedHeaders['Content-Type'] = 'application/x-www-form-urlencoded';
+      }
+    } else if (contentType === 'raw') {
+      resolvedBody = resolveTemplateValue(endpoint.bodyPayload || '', context);
+      if (endpoint.rawContentType && !resolvedHeaders['Content-Type'] && !resolvedHeaders['content-type']) {
+        resolvedHeaders['Content-Type'] = endpoint.rawContentType;
+      }
     }
   }
 
   // 5. Execution parameters
+  const isJsonBody =
+    (endpoint.bodyContentType === 'json' || !endpoint.bodyContentType) &&
+    typeof resolvedBody === 'object' &&
+    resolvedBody !== null;
+
   const requestOptions: any = {
     method: endpoint.method,
     url: targetUrl,
     headers: resolvedHeaders,
     qs: resolvedQueryParams,
     body: resolvedBody,
-    json: endpoint.bodyEncoding === 'json',
+    json: isJsonBody,
     timeout: endpoint.timeoutMs || 30000,
     returnFullResponse: true,
   };

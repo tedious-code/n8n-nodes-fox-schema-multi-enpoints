@@ -38,9 +38,7 @@
   "n8n": {
     "n8nNodesApiVersion": 1,
     "strict": true,
-    "credentials": [
-      "dist/credentials/FoxSchemaApi.credentials.js"
-    ],
+    "credentials": [],
     "nodes": [
       "dist/nodes/FoxSchemaMultiEndpoints/FoxSchemaMultiEndpoints.node.js"
     ]

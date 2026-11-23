@@ -16,14 +16,25 @@ export interface KeyValueEntry {
   value: string;
 }
 
+export interface KeyValueTypedEntry {
+  key: string;
+  value: string;
+  type?: 'string' | 'number' | 'boolean' | 'json';
+}
+
 export interface EndpointDefinition {
   alias: string;
   method: HttpVerb;
   url: string;
   queryParams?: KeyValueEntry[] | Record<string, string>;
   headers?: KeyValueEntry[] | Record<string, string>;
-  bodyEncoding?: BodyEncoding;
+  sendBody?: boolean;
+  bodyContentType?: 'json' | 'formUrlencoded' | 'raw';
+  bodyInputMethod?: 'jsonEditor' | 'fields';
   bodyPayload?: string;
+  bodyFields?: KeyValueTypedEntry[];
+  formFields?: KeyValueEntry[];
+  rawContentType?: string;
   dataPath?: string;
   continueOnFail?: boolean;
   timeoutMs?: number;
