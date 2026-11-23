@@ -37,9 +37,9 @@ jobs:
       - name: Build package
         run: npm run build
 
-      - name: Publish to npm
+      - name: Publish to npm with provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           TAG="${{ github.event.inputs.tag || 'latest' }}"
-          npm publish --access public --tag "$TAG"
+          npm publish --provenance --access public --tag "$TAG"
