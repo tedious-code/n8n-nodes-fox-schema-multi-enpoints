@@ -29,6 +29,25 @@ Authored by **Huy Phan**
 ### Body Configuration
 ![Body Configuration](screenshots/properties_panel_body.png)
 
+## Installation
+
+### In n8n (Community Nodes)
+1. Go to **Settings** > **Community Nodes**.
+2. Select **Install a community node**.
+3. Enter `n8n-nodes-fox-schema-multi-enpoints` and click **Install**.
+
+### Via CLI / Docker
+```bash
+npm install n8n-nodes-fox-schema-multi-enpoints
+```
+
+## CI / CD & Publishing
+
+This repository includes automated GitHub Actions workflows:
+- **CI (`.github/workflows/ci.yml`)**: Runs unit tests and builds on pushes and PRs to `main` across Node 20.x and 22.x.
+- **Publish to npm (`.github/workflows/publish.yml`)**: Automatically publishes to npm on GitHub Releases or via manual trigger (**Actions** > **Publish to npm** > **Run workflow**).
+  - *Setup*: Add your npm automation token as `NPM_TOKEN` under **Settings** > **Secrets and variables** > **Actions** in GitHub.
+
 ## Package
 
 - Package Name: `n8n-nodes-fox-schema-multi-enpoints`
