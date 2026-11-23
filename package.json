@@ -1,0 +1,59 @@
+{
+  "name": "n8n-nodes-fox-schema-multi-enpoints",
+  "version": "0.1.0",
+  "description": "Fox Multi-Endpoint Pipe: Execute multiple HTTP API endpoints sequentially (pipeline) or concurrently (parallel) with dynamic schema mapping and variable propagation in n8n.",
+  "keywords": [
+    "n8n-community-node-package",
+    "n8n-community-node",
+    "foxschema",
+    "fox-pipe",
+    "multi-endpoints",
+    "multi-pipe",
+    "pipeline",
+    "api-orchestration",
+    "http-request"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/tedious-code/n8n-nodes-fox-schema-multi-enpoints",
+  "author": {
+    "name": "Huy Phan",
+    "email": "huyplb@live.com",
+    "url": "https://github.com/tedious-code"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tedious-code/n8n-nodes-fox-schema-multi-enpoints.git"
+  },
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc && npm run copy-assets",
+    "copy-assets": "node -e 'const fs=require(\"fs\"); const path=require(\"path\"); function copy(src,dst){fs.mkdirSync(path.dirname(dst),{recursive:true});fs.copyFileSync(src,dst);console.log(`Copied ${src} -> ${dst}`);} if(fs.existsSync(\"nodes/FoxSchemaMultiEndpoints/foxMultiPipe.svg\")) copy(\"nodes/FoxSchemaMultiEndpoints/foxMultiPipe.svg\", \"dist/nodes/FoxSchemaMultiEndpoints/foxMultiPipe.svg\"); if(fs.existsSync(\"nodes/FoxSchemaMultiEndpoints/FoxSchemaMultiEndpoints.node.json\")) copy(\"nodes/FoxSchemaMultiEndpoints/FoxSchemaMultiEndpoints.node.json\", \"dist/nodes/FoxSchemaMultiEndpoints/FoxSchemaMultiEndpoints.node.json\");'",
+    "dev": "tsc --watch",
+    "test": "jest --passWithNoTests",
+    "prepublishOnly": "npm run build"
+  },
+  "files": [
+    "dist"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "strict": true,
+    "credentials": [
+      "dist/credentials/FoxSchemaApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/FoxSchemaMultiEndpoints/FoxSchemaMultiEndpoints.node.js"
+    ]
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.11.0",
+    "jest": "^29.7.0",
+    "n8n-workflow": "^1.60.0",
+    "ts-jest": "^29.1.2",
+    "typescript": "^5.3.3"
+  }
+}

@@ -1,0 +1,11 @@
+tests/
+src/
+nodes/**/*.ts
+credentials/**/*.ts
+tsconfig.json
+jest.config.js
+.gitignore
+.github/
+*.log
+coverage/
+.DS_Store

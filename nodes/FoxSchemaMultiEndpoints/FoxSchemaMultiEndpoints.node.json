@@ -1,0 +1,16 @@
+{
+  "node": "n8n-nodes-fox-schema-multi-enpoints.foxSchemaMultiEndpoints",
+  "nodeVersion": "1.0",
+  "codexVersion": "1.0",
+  "categories": [
+    "Development",
+    "Utility"
+  ],
+  "resources": {
+    "primaryDocumentation": [
+      {
+        "url": "https://github.com/tedious-code/n8n-nodes-fox-schema-multi-enpoints"
+      }
+    ]
+  }
+}
