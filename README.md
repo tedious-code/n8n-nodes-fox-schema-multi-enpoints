@@ -1,8 +1,7 @@
 # Fox Schema Multi Endpoint Node for n8n
 
 Custom community node for n8n designed to dispatch and orchestrate multiple HTTP requests in a single execution step.
-
-Authored by **Huy Phan** ([@tedious-code](https://github.com/tedious-code) / <huyplb@live.com>).
+Authored by **Huy Phan**
 
 ## Highlights
 
