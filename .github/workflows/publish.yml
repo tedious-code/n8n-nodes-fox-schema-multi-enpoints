@@ -45,4 +45,4 @@ jobs:
       - name: Publish to npm with provenance (OIDC Trusted Publishing)
         run: |
           TAG="${{ github.event.inputs.tag || 'latest' }}"
-          npm publish --provenance --access public --tag "$TAG"
+          npm publish --provenance --access public --tag "$TAG" --loglevel verbose
