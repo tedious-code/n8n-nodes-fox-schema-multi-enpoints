@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-fox-schema-multi-enpoints",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Fox Schema Multi Endpoint node for n8n: Execute multiple HTTP API endpoints sequentially or concurrently with dynamic schema mapping and variable propagation.",
   "keywords": [
     "n8n-community-node-package",
@@ -22,7 +22,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/tedious-code/n8n-nodes-fox-schema-multi-enpoints.git"
+    "url": "git+https://github.com/tedious-code/n8n-nodes-fox-schema-multi-enpoints.git"
   },
   "main": "index.js",
   "scripts": {
