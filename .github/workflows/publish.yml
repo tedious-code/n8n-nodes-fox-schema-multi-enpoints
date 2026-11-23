@@ -40,9 +40,7 @@ jobs:
       - name: Build package
         run: npm run build
 
-      - name: Publish to npm with provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish to npm with provenance (OIDC Trusted Publishing)
         run: |
           TAG="${{ github.event.inputs.tag || 'latest' }}"
           npm publish --provenance --access public --tag "$TAG"
