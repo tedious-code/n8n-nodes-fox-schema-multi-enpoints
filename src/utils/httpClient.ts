@@ -152,6 +152,11 @@ export async function executeSingleEndpoint(
     typeof resolvedBody === 'object' &&
     resolvedBody !== null;
 
+  const requestTimeout =
+    endpoint.timeoutMs !== undefined && endpoint.timeoutMs !== null
+      ? endpoint.timeoutMs
+      : (globalSettings.timeoutMs || 500);
+
   const requestOptions: any = {
     method: endpoint.method,
     url: targetUrl,
@@ -159,7 +164,7 @@ export async function executeSingleEndpoint(
     qs: resolvedQueryParams,
     body: resolvedBody,
     json: isJsonBody,
-    timeout: endpoint.timeoutMs || 30000,
+    timeout: requestTimeout,
     returnFullResponse: true,
   };
 
@@ -236,6 +241,7 @@ async function performNativeFetch(options: any): Promise<any> {
   const init: RequestInit = {
     method: options.method,
     headers: options.headers,
+    signal: options.timeout ? AbortSignal.timeout(options.timeout) : undefined,
   };
 
   if (options.body) {

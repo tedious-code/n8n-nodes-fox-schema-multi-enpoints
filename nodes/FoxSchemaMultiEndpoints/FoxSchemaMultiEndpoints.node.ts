@@ -93,6 +93,14 @@ export class FoxSchemaMultiEndpoints implements INodeType {
         description: 'How responses should be combined in the final node output',
       },
       {
+        displayName: 'Timeout (ms)',
+        name: 'timeoutMs',
+        type: 'number',
+        default: 500,
+        description:
+          'Timeout in milliseconds for each request. Defaults to 500ms and can be updated as needed.',
+      },
+      {
         displayName: 'Endpoints',
         name: 'endpoints',
         type: 'fixedCollection',
@@ -415,8 +423,8 @@ export class FoxSchemaMultiEndpoints implements INodeType {
                 displayName: 'Timeout (ms)',
                 name: 'timeoutMs',
                 type: 'number',
-                default: 30000,
-                description: 'Request timeout in milliseconds',
+                default: 500,
+                description: 'Request timeout in milliseconds (default: 500ms)',
               },
             ],
           },
@@ -436,6 +444,13 @@ export class FoxSchemaMultiEndpoints implements INodeType {
             default: '',
             placeholder: 'https://api.example.com/v1',
             description: 'Optional default URL prefix for relative endpoint paths',
+          },
+          {
+            displayName: 'Timeout (ms)',
+            name: 'timeoutMs',
+            type: 'number',
+            default: 500,
+            description: 'Global request timeout in milliseconds (default: 500ms)',
           },
           {
             displayName: 'Output Mode',
@@ -580,6 +595,10 @@ export class FoxSchemaMultiEndpoints implements INodeType {
           {}
         ) as Record<string, any>;
 
+        const globalTimeout = (this.getNodeParameter('timeoutMs', itemIndex, 500) ??
+          globalConfig.timeoutMs ??
+          500) as number;
+
         // Construct Global Settings
         const globalSettings: GlobalPipeSettings = {
           baseUrl: globalConfig.baseUrl || undefined,
@@ -591,6 +610,7 @@ export class FoxSchemaMultiEndpoints implements INodeType {
           basicAuthPass: globalConfig.basicAuthPass,
           delayBetweenStepsMs: globalConfig.delayBetweenStepsMs || 0,
           concurrencyLimit: globalConfig.concurrencyLimit || 5,
+          timeoutMs: globalTimeout,
         };
 
         const topResponseMode = this.getNodeParameter(
@@ -624,7 +644,10 @@ export class FoxSchemaMultiEndpoints implements INodeType {
             formFields: ep.formFields?.fieldValues || [],
             rawContentType: ep.rawContentType || 'text/plain',
             continueOnFail: ep.continueOnFail === true,
-            timeoutMs: ep.timeoutMs || 30000,
+            timeoutMs:
+              ep.timeoutMs !== undefined && ep.timeoutMs !== null
+                ? ep.timeoutMs
+                : globalTimeout,
             retryAttempts: ep.retryAttempts || 0,
             retryDelayMs: 500,
           };

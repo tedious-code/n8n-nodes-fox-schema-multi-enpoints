@@ -68,6 +68,7 @@ export interface GlobalPipeSettings {
   defaultHeaders?: KeyValueEntry[];
   concurrencyLimit?: number;
   delayBetweenStepsMs?: number;
+  timeoutMs?: number;
   authType?: 'none' | 'bearer' | 'header' | 'basic';
   bearerToken?: string;
   headerAuthName?: string;
