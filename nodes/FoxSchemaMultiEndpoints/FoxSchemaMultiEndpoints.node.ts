@@ -3,7 +3,6 @@ import {
   INodeExecutionData,
   INodeType,
   INodeTypeDescription,
-  NodeConnectionType,
   NodeOperationError,
 } from 'n8n-workflow';
 
@@ -30,8 +29,8 @@ export class FoxSchemaMultiEndpoints implements INodeType {
     defaults: {
       name: 'Fox Multi-Endpoint Pipe',
     },
-    inputs: [NodeConnectionType.Main],
-    outputs: [NodeConnectionType.Main],
+    inputs: ['main'],
+    outputs: ['main'],
     credentials: [
       {
         name: 'foxSchemaApi',
@@ -532,7 +531,7 @@ export class FoxSchemaMultiEndpoints implements INodeType {
         }
 
         // Format Output Data
-        const formattedItems = this.formatExecutionOutput(
+        const formattedItems = formatExecutionOutput(
           context,
           outputMode,
           items[itemIndex]
@@ -554,12 +553,13 @@ export class FoxSchemaMultiEndpoints implements INodeType {
 
     return [returnData];
   }
+}
 
-  private formatExecutionOutput(
-    context: PipelineRuntimeContext,
-    outputMode: OutputAggregationMode,
-    originalItem: INodeExecutionData
-  ): INodeExecutionData[] {
+function formatExecutionOutput(
+  context: PipelineRuntimeContext,
+  outputMode: OutputAggregationMode,
+  originalItem: INodeExecutionData
+): INodeExecutionData[] {
     switch (outputMode) {
       case 'lastStepOnly': {
         const lastStep = context.prev || context.steps[context.steps.length - 1];
@@ -635,5 +635,4 @@ export class FoxSchemaMultiEndpoints implements INodeType {
         ];
       }
     }
-  }
 }
