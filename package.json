@@ -1,7 +1,7 @@
 {
   "name": "n8n-nodes-fox-schema-multi-enpoints",
   "version": "0.1.0",
-  "description": "Fox Multi-Endpoint Pipe: Execute multiple HTTP API endpoints sequentially (pipeline) or concurrently (parallel) with dynamic schema mapping and variable propagation in n8n.",
+  "description": "Fox Schema Multi Endpoint node for n8n: Execute multiple HTTP API endpoints sequentially or concurrently with dynamic schema mapping and variable propagation.",
   "keywords": [
     "n8n-community-node-package",
     "n8n-community-node",

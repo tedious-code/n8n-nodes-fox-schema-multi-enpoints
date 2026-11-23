@@ -18,16 +18,16 @@ import { extractByPath } from '../../src/utils/schemaMapper';
 
 export class FoxSchemaMultiEndpoints implements INodeType {
   description: INodeTypeDescription = {
-    displayName: 'Fox Multi-Endpoint Pipe',
+    displayName: 'Fox Schema Multi Endpoint',
     name: 'foxSchemaMultiEndpoints',
     icon: 'file:foxMultiPipe.svg',
     group: ['transform', 'output'],
     version: 1,
     subtitle: '={{$parameter["mode"]}}',
     description:
-      'Execute multiple HTTP endpoints sequentially (pipeline) or in parallel with dynamic variable propagation',
+      'Fox Schema Multi Endpoint node for n8n: Execute multiple HTTP endpoints in sequence or parallel with dynamic variable propagation',
     defaults: {
-      name: 'Fox Multi-Endpoint Pipe',
+      name: 'Fox Schema Multi Endpoint',
     },
     inputs: ['main'],
     outputs: ['main'],
@@ -51,6 +51,46 @@ export class FoxSchemaMultiEndpoints implements INodeType {
         ],
         default: 'pipeline',
         description: 'How configured endpoints should be processed',
+      },
+      {
+        displayName: 'Response Output',
+        name: 'responseMode',
+        type: 'options',
+        options: [
+          {
+            name: 'Merge All Responses into an Object',
+            value: 'mergeAllToObject',
+            description:
+              'Combine all endpoint results into an object keyed by step alias e.g. { step1: { data, status }, step2: { ... } }',
+          },
+          {
+            name: 'Last Response Only',
+            value: 'lastResponse',
+            description: 'Return data only from the final executed endpoint',
+          },
+          {
+            name: 'First Response Only',
+            value: 'firstResponse',
+            description: 'Return data only from the first executed endpoint',
+          },
+          {
+            name: 'All Responses as Array',
+            value: 'allAsArray',
+            description: 'Return a list containing all endpoint execution responses',
+          },
+          {
+            name: 'Split Each Response to New Item',
+            value: 'splitToItems',
+            description: 'Emit each endpoint response as an individual n8n output item',
+          },
+          {
+            name: 'Merge into Input Item',
+            value: 'mergeIntoInput',
+            description: 'Merge all endpoint responses directly into the incoming $json object',
+          },
+        ],
+        default: 'mergeAllToObject',
+        description: 'How responses should be combined in the final node output',
       },
       {
         displayName: 'Endpoints',
@@ -553,8 +593,14 @@ export class FoxSchemaMultiEndpoints implements INodeType {
           concurrencyLimit: globalConfig.concurrencyLimit || 5,
         };
 
-        const outputMode = (globalConfig.outputMode ||
-          'allAsObject') as OutputAggregationMode;
+        const topResponseMode = this.getNodeParameter(
+          'responseMode',
+          itemIndex,
+          ''
+        ) as string;
+        const outputMode = (topResponseMode ||
+          globalConfig.outputMode ||
+          'mergeAllToObject') as OutputAggregationMode;
 
         // Normalize Endpoints
         const endpoints: EndpointDefinition[] = rawEndpoints.map((ep, idx) => {
@@ -703,11 +749,28 @@ function formatExecutionOutput(
   originalItem: INodeExecutionData
 ): INodeExecutionData[] {
     switch (outputMode) {
-      case 'lastStepOnly': {
-        const lastStep = context.prev || context.steps[context.steps.length - 1];
+      case 'firstResponse': {
+        const firstStep = context.steps[0];
+        const rawData = firstStep?.data !== undefined ? firstStep.data : {};
+        const json =
+          typeof rawData === 'object' && rawData !== null ? rawData : { data: rawData };
         return [
           {
-            json: lastStep?.data !== undefined ? lastStep.data : {},
+            json,
+            pairedItem: { item: context.itemIndex },
+          },
+        ];
+      }
+
+      case 'lastResponse':
+      case 'lastStepOnly': {
+        const lastStep = context.prev || context.steps[context.steps.length - 1];
+        const rawData = lastStep?.data !== undefined ? lastStep.data : {};
+        const json =
+          typeof rawData === 'object' && rawData !== null ? rawData : { data: rawData };
+        return [
+          {
+            json,
             pairedItem: { item: context.itemIndex },
           },
         ];
@@ -757,6 +820,7 @@ function formatExecutionOutput(
         ];
       }
 
+      case 'mergeAllToObject':
       case 'allAsObject':
       default: {
         const objOutput: Record<string, any> = {};

@@ -5,9 +5,12 @@ export type BodyEncoding = 'json' | 'formUrlencoded' | 'formData' | 'raw';
 export type ExecutionStrategy = 'pipeline' | 'parallel' | 'batch';
 
 export type OutputAggregationMode =
+  | 'mergeAllToObject'
   | 'allAsObject'
-  | 'allAsArray'
+  | 'lastResponse'
   | 'lastStepOnly'
+  | 'firstResponse'
+  | 'allAsArray'
   | 'splitToItems'
   | 'mergeIntoInput';
 
