@@ -3,7 +3,9 @@ import {
   INodeExecutionData,
   INodeType,
   INodeTypeDescription,
+  NodeConnectionTypes,
   NodeOperationError,
+  sleep,
 } from 'n8n-workflow';
 
 import {
@@ -14,14 +16,16 @@ import {
   PipelineRuntimeContext,
 } from '../../src/types';
 import { executeSingleEndpoint } from '../../src/utils/httpClient';
-import { extractByPath } from '../../src/utils/schemaMapper';
 
 export class FoxSchemaMultiEndpoints implements INodeType {
   description: INodeTypeDescription = {
     displayName: 'Fox Schema Multi Endpoint',
     name: 'foxSchemaMultiEndpoints',
-    icon: 'file:foxMultiPipe.svg',
-    group: ['transform', 'output'],
+    icon: {
+      light: 'file:foxMultiPipe.svg',
+      dark: 'file:foxMultiPipe.svg',
+    },
+    group: ['transform'],
     version: 1,
     subtitle: '={{$parameter["mode"]}}',
     description:
@@ -29,24 +33,40 @@ export class FoxSchemaMultiEndpoints implements INodeType {
     defaults: {
       name: 'Fox Schema Multi Endpoint',
     },
-    inputs: ['main'],
-    outputs: ['main'],
+    inputs: [NodeConnectionTypes.Main],
+    outputs: [NodeConnectionTypes.Main],
+    usableAsTool: true,
     properties: [
+      {
+        displayName: 'Operation',
+        name: 'operation',
+        type: 'options',
+        noDataExpression: true,
+        options: [
+          {
+            name: 'Execute Multi-Endpoint Pipeline',
+            value: 'execute',
+            action: 'Execute multiple endpoints',
+            description: 'Execute multiple HTTP endpoints sequentially or concurrently',
+          },
+        ],
+        default: 'execute',
+      },
       {
         displayName: 'Execution Mode',
         name: 'mode',
         type: 'options',
         options: [
           {
-            name: 'Sequential Pipe (Chained)',
-            value: 'pipeline',
-            description:
-              'Execute requests in order. Downstream requests can access prior responses via {{$pipeline.alias.data}}',
-          },
-          {
             name: 'Parallel (Concurrent)',
             value: 'parallel',
             description: 'Execute requests concurrently and aggregate all responses',
+          },
+          {
+            name: 'Sequential Pipe (Chained)',
+            value: 'pipeline',
+            description:
+              'Execute requests in order. Downstream requests can access prior responses via {{$pipeline.alias.data}}.',
           },
         ],
         default: 'pipeline',
@@ -58,15 +78,9 @@ export class FoxSchemaMultiEndpoints implements INodeType {
         type: 'options',
         options: [
           {
-            name: 'Merge All Responses into an Object',
-            value: 'mergeAllToObject',
-            description:
-              'Combine all endpoint results into an object keyed by step alias e.g. { step1: { data, status }, step2: { ... } }',
-          },
-          {
-            name: 'Last Response Only',
-            value: 'lastResponse',
-            description: 'Return data only from the final executed endpoint',
+            name: 'All Responses as Array',
+            value: 'allAsArray',
+            description: 'Return a list containing all endpoint execution responses',
           },
           {
             name: 'First Response Only',
@@ -74,26 +88,32 @@ export class FoxSchemaMultiEndpoints implements INodeType {
             description: 'Return data only from the first executed endpoint',
           },
           {
-            name: 'All Responses as Array',
-            value: 'allAsArray',
-            description: 'Return a list containing all endpoint execution responses',
+            name: 'Last Response Only',
+            value: 'lastResponse',
+            description: 'Return data only from the final executed endpoint',
+          },
+          {
+            name: 'Merge All Responses Into an Object',
+            value: 'mergeAllToObject',
+            description:
+              'Combine all endpoint results into an object keyed by step alias e.g. { step1: { data, status }, step2: { ... } }.',
+          },
+          {
+            name: 'Merge Into Input Item',
+            value: 'mergeIntoInput',
+            description: 'Merge all endpoint responses directly into the incoming $JSON object',
           },
           {
             name: 'Split Each Response to New Item',
             value: 'splitToItems',
             description: 'Emit each endpoint response as an individual n8n output item',
           },
-          {
-            name: 'Merge into Input Item',
-            value: 'mergeIntoInput',
-            description: 'Merge all endpoint responses directly into the incoming $json object',
-          },
         ],
         default: 'mergeAllToObject',
         description: 'How responses should be combined in the final node output',
       },
       {
-        displayName: 'Timeout (ms)',
+        displayName: 'Timeout (Ms)',
         name: 'timeoutMs',
         type: 'number',
         default: 500,
@@ -132,105 +152,6 @@ export class FoxSchemaMultiEndpoints implements INodeType {
                   'Unique identifier for referencing this step in downstream requests and output',
               },
               {
-                displayName: 'Method',
-                name: 'method',
-                type: 'options',
-                options: [
-                  { name: 'GET', value: 'GET' },
-                  { name: 'POST', value: 'POST' },
-                  { name: 'PUT', value: 'PUT' },
-                  { name: 'PATCH', value: 'PATCH' },
-                  { name: 'DELETE', value: 'DELETE' },
-                  { name: 'HEAD', value: 'HEAD' },
-                ],
-                default: 'GET',
-              },
-              {
-                displayName: 'URL / Path',
-                name: 'url',
-                type: 'string',
-                default: '',
-                placeholder: 'https://api.example.com/items or /relative/path',
-                description:
-                  'Full URL or relative path if Base URL is defined. Supports expressions like {{$pipeline.auth.data.id}}',
-              },
-              {
-                displayName: 'Response Data Path',
-                name: 'dataPath',
-                type: 'string',
-                default: '',
-                placeholder: 'e.g. data.items or result[0]',
-                description:
-                  'Dot/bracket notation path to extract from the response (empty returns full response)',
-              },
-              {
-                displayName: 'Headers',
-                name: 'headers',
-                type: 'fixedCollection',
-                typeOptions: {
-                  multipleValues: true,
-                },
-                placeholder: 'Add Header',
-                default: {},
-                options: [
-                  {
-                    name: 'headerValues',
-                    displayName: 'Header',
-                    values: [
-                      {
-                        displayName: 'Key',
-                        name: 'key',
-                        type: 'string',
-                        default: '',
-                      },
-                      {
-                        displayName: 'Value',
-                        name: 'value',
-                        type: 'string',
-                        default: '',
-                      },
-                    ],
-                  },
-                ],
-              },
-              {
-                displayName: 'Query Parameters',
-                name: 'queryParams',
-                type: 'fixedCollection',
-                typeOptions: {
-                  multipleValues: true,
-                },
-                placeholder: 'Add Query Parameter',
-                default: {},
-                options: [
-                  {
-                    name: 'paramValues',
-                    displayName: 'Parameter',
-                    values: [
-                      {
-                        displayName: 'Key',
-                        name: 'key',
-                        type: 'string',
-                        default: '',
-                      },
-                      {
-                        displayName: 'Value',
-                        name: 'value',
-                        type: 'string',
-                        default: '',
-                      },
-                    ],
-                  },
-                ],
-              },
-              {
-                displayName: 'Send Body',
-                name: 'sendBody',
-                type: 'boolean',
-                default: false,
-                description: 'Whether to include a request body with this endpoint',
-              },
-              {
                 displayName: 'Body Content Type',
                 name: 'bodyContentType',
                 type: 'options',
@@ -240,56 +161,21 @@ export class FoxSchemaMultiEndpoints implements INodeType {
                   },
                 },
                 options: [
-                  { name: 'JSON', value: 'json' },
-                  { name: 'Form-Urlencoded', value: 'formUrlencoded' },
-                  { name: 'Raw / Text / XML / GraphQL', value: 'raw' },
+                  {
+                    name: 'Form-Urlencoded',
+                    value: 'formUrlencoded',
+                  },
+                  {
+                    name: 'JSON',
+                    value: 'json',
+                  },
+                  {
+                    name: 'Raw / Text / XML / GraphQL',
+                    value: 'raw',
+                  },
                 ],
                 default: 'json',
                 description: 'Format of the request body',
-              },
-              {
-                displayName: 'JSON Input Type',
-                name: 'bodyJsonType',
-                type: 'options',
-                displayOptions: {
-                  show: {
-                    sendBody: [true],
-                    bodyContentType: ['json'],
-                  },
-                },
-                options: [
-                  {
-                    name: 'JSON Editor / Expression',
-                    value: 'jsonEditor',
-                    description: 'Write raw JSON string or expression',
-                  },
-                  {
-                    name: 'Fields (Key-Value Builder)',
-                    value: 'fields',
-                    description: 'Add individual JSON fields',
-                  },
-                ],
-                default: 'jsonEditor',
-              },
-              {
-                displayName: 'JSON Payload',
-                name: 'bodyPayload',
-                type: 'string',
-                typeOptions: {
-                  rows: 5,
-                },
-                displayOptions: {
-                  show: {
-                    sendBody: [true],
-                    bodyContentType: ['json'],
-                    bodyJsonType: ['jsonEditor'],
-                  },
-                },
-                default: '',
-                placeholder:
-                  '{\n  "userId": "{{ $json.id }}",\n  "token": "{{ $pipeline.auth.data.token }}",\n  "items": {{ $pipeline.cart.data }}\n}',
-                description:
-                  'JSON payload to send with the request. Supports expressions like {{$pipeline.step1.data}}',
               },
               {
                 displayName: 'Body Fields',
@@ -323,10 +209,10 @@ export class FoxSchemaMultiEndpoints implements INodeType {
                         name: 'type',
                         type: 'options',
                         options: [
-                          { name: 'String', value: 'string' },
-                          { name: 'Number', value: 'number' },
                           { name: 'Boolean', value: 'boolean' },
+                          { name: 'Number', value: 'number' },
                           { name: 'Object / Array (JSON)', value: 'json' },
+                          { name: 'String', value: 'string' },
                         ],
                         default: 'string',
                       },
@@ -339,6 +225,14 @@ export class FoxSchemaMultiEndpoints implements INodeType {
                     ],
                   },
                 ],
+              },
+              {
+                displayName: 'Continue on Fail',
+                name: 'continueOnFail',
+                type: 'boolean',
+                default: false,
+                description:
+                  'Whether to continue pipeline execution if this endpoint fails',
               },
               {
                 displayName: 'Form Fields',
@@ -377,17 +271,122 @@ export class FoxSchemaMultiEndpoints implements INodeType {
                 ],
               },
               {
-                displayName: 'Raw Content Type',
-                name: 'rawContentType',
-                type: 'string',
+                displayName: 'Headers',
+                name: 'headers',
+                type: 'fixedCollection',
+                typeOptions: {
+                  multipleValues: true,
+                },
+                placeholder: 'Add Header',
+                default: {},
+                options: [
+                  {
+                    name: 'headerValues',
+                    displayName: 'Header',
+                    values: [
+                      {
+                        displayName: 'Key',
+                        name: 'key',
+                        type: 'string',
+                        default: '',
+                      },
+                      {
+                        displayName: 'Value',
+                        name: 'value',
+                        type: 'string',
+                        default: '',
+                      },
+                    ],
+                  },
+                ],
+              },
+              {
+                displayName: 'JSON Input Type',
+                name: 'bodyJsonType',
+                type: 'options',
                 displayOptions: {
                   show: {
                     sendBody: [true],
-                    bodyContentType: ['raw'],
+                    bodyContentType: ['json'],
                   },
                 },
-                default: 'text/plain',
-                placeholder: 'application/xml, application/graphql, etc.',
+                options: [
+                  {
+                    name: 'Fields (Key-Value Builder)',
+                    value: 'fields',
+                    description: 'Add individual JSON fields',
+                  },
+                  {
+                    name: 'JSON Editor / Expression',
+                    value: 'jsonEditor',
+                    description: 'Write raw JSON string or expression',
+                  },
+                ],
+                default: 'jsonEditor',
+              },
+              {
+                displayName: 'JSON Payload',
+                name: 'bodyPayload',
+                type: 'string',
+                typeOptions: {
+                  rows: 5,
+                },
+                displayOptions: {
+                  show: {
+                    sendBody: [true],
+                    bodyContentType: ['json'],
+                    bodyJsonType: ['jsonEditor'],
+                  },
+                },
+                default: '',
+                placeholder:
+                  '{\n  "userId": "{{ $json.ID }}",\n  "token": "{{ $pipeline.auth.data.token }}",\n  "items": {{ $pipeline.cart.data }}\n}',
+                description:
+                  'JSON payload to send with the request. Supports expressions like {{$pipeline.step1.data}}.',
+              },
+              {
+                displayName: 'Method',
+                name: 'method',
+                type: 'options',
+                options: [
+                  { name: 'DELETE', value: 'DELETE' },
+                  { name: 'GET', value: 'GET' },
+                  { name: 'HEAD', value: 'HEAD' },
+                  { name: 'PATCH', value: 'PATCH' },
+                  { name: 'POST', value: 'POST' },
+                  { name: 'PUT', value: 'PUT' },
+                ],
+                default: 'GET',
+              },
+              {
+                displayName: 'Query Parameters',
+                name: 'queryParams',
+                type: 'fixedCollection',
+                typeOptions: {
+                  multipleValues: true,
+                },
+                placeholder: 'Add Query Parameter',
+                default: {},
+                options: [
+                  {
+                    name: 'paramValues',
+                    displayName: 'Parameter',
+                    values: [
+                      {
+                        displayName: 'Key',
+                        name: 'key',
+                        type: 'string',
+                        default: '',
+                      },
+                      {
+                        displayName: 'Value',
+                        name: 'value',
+                        type: 'string',
+                        default: '',
+                      },
+                    ],
+                  },
+                ],
               },
               {
                 displayName: 'Raw Body',
@@ -405,12 +404,26 @@ export class FoxSchemaMultiEndpoints implements INodeType {
                 default: '',
               },
               {
-                displayName: 'Continue on Fail',
-                name: 'continueOnFail',
-                type: 'boolean',
-                default: false,
+                displayName: 'Raw Content Type',
+                name: 'rawContentType',
+                type: 'string',
+                displayOptions: {
+                  show: {
+                    sendBody: [true],
+                    bodyContentType: ['raw'],
+                  },
+                },
+                default: 'text/plain',
+                placeholder: 'application/xml, application/graphql, etc.',
+              },
+              {
+                displayName: 'Response Data Path',
+                name: 'dataPath',
+                type: 'string',
+                default: '',
+                placeholder: 'e.g. data.items or result[0]',
                 description:
-                  'Whether to continue pipeline execution if this endpoint fails',
+                  'Dot/bracket notation path to extract from the response (empty returns full response)',
               },
               {
                 displayName: 'Retry Attempts',
@@ -420,11 +433,27 @@ export class FoxSchemaMultiEndpoints implements INodeType {
                 description: 'Number of times to retry this endpoint on HTTP error',
               },
               {
-                displayName: 'Timeout (ms)',
+                displayName: 'Send Body',
+                name: 'sendBody',
+                type: 'boolean',
+                default: false,
+                description: 'Whether to include a request body with this endpoint',
+              },
+              {
+                displayName: 'Timeout (Ms)',
                 name: 'timeoutMs',
                 type: 'number',
                 default: 500,
                 description: 'Request timeout in milliseconds (default: 500ms)',
+              },
+              {
+                displayName: 'URL / Path',
+                name: 'url',
+                type: 'string',
+                default: '',
+                placeholder: 'https://api.example.com/items or /relative/path',
+                description:
+                  'Full URL or relative path if Base URL is defined. Supports expressions like {{$pipeline.auth.data.ID}}.',
               },
             ],
           },
@@ -438,79 +467,24 @@ export class FoxSchemaMultiEndpoints implements INodeType {
         default: {},
         options: [
           {
+            displayName: 'Authentication Type',
+            name: 'authType',
+            type: 'options',
+            options: [
+              { name: 'Basic Auth', value: 'basic' },
+              { name: 'Bearer Token', value: 'bearer' },
+              { name: 'Custom Header', value: 'header' },
+              { name: 'None', value: 'none' },
+            ],
+            default: 'none',
+          },
+          {
             displayName: 'Base URL',
             name: 'baseUrl',
             type: 'string',
             default: '',
             placeholder: 'https://api.example.com/v1',
             description: 'Optional default URL prefix for relative endpoint paths',
-          },
-          {
-            displayName: 'Timeout (ms)',
-            name: 'timeoutMs',
-            type: 'number',
-            default: 500,
-            description: 'Global request timeout in milliseconds (default: 500ms)',
-          },
-          {
-            displayName: 'Output Mode',
-            name: 'outputMode',
-            type: 'options',
-            options: [
-              {
-                name: 'All Responses as Object (Keyed by Alias)',
-                value: 'allAsObject',
-                description: 'Output { step1: { data, status }, step2: { ... } }',
-              },
-              {
-                name: 'Last Step Only',
-                value: 'lastStepOnly',
-                description: 'Output data only from the final executed endpoint',
-              },
-              {
-                name: 'All Responses as Array',
-                value: 'allAsArray',
-                description: 'Output [ step1Response, step2Response, ... ]',
-              },
-              {
-                name: 'Split Each Response to New Item',
-                value: 'splitToItems',
-                description: 'Emit an n8n item for each endpoint execution',
-              },
-              {
-                name: 'Merge into Input Item',
-                value: 'mergeIntoInput',
-                description: 'Merge output properties into the incoming $json object',
-              },
-            ],
-            default: 'allAsObject',
-            description: 'How the collected responses should be structured in n8n output',
-          },
-          {
-            displayName: 'Delay Between Steps (ms)',
-            name: 'delayBetweenStepsMs',
-            type: 'number',
-            default: 0,
-            description: 'Pause duration between consecutive requests in pipeline mode',
-          },
-          {
-            displayName: 'Concurrency Limit',
-            name: 'concurrencyLimit',
-            type: 'number',
-            default: 5,
-            description: 'Maximum concurrent requests when running in parallel mode',
-          },
-          {
-            displayName: 'Authentication Type',
-            name: 'authType',
-            type: 'options',
-            options: [
-              { name: 'None', value: 'none' },
-              { name: 'Bearer Token', value: 'bearer' },
-              { name: 'Custom Header', value: 'header' },
-              { name: 'Basic Auth', value: 'basic' },
-            ],
-            default: 'none',
           },
           {
             displayName: 'Bearer Token',
@@ -523,6 +497,20 @@ export class FoxSchemaMultiEndpoints implements INodeType {
               },
             },
             default: '',
+          },
+          {
+            displayName: 'Concurrency Limit',
+            name: 'concurrencyLimit',
+            type: 'number',
+            default: 5,
+            description: 'Maximum concurrent requests when running in parallel mode',
+          },
+          {
+            displayName: 'Delay Between Steps (Ms)',
+            name: 'delayBetweenStepsMs',
+            type: 'number',
+            default: 0,
+            description: 'Pause duration between consecutive requests in pipeline mode',
           },
           {
             displayName: 'Header Name',
@@ -548,9 +536,44 @@ export class FoxSchemaMultiEndpoints implements INodeType {
             default: '',
           },
           {
-            displayName: 'Username',
-            name: 'basicAuthUser',
+            displayName: 'Output Mode',
+            name: 'outputMode',
+            type: 'options',
+            options: [
+              {
+                name: 'All Responses as Array',
+                value: 'allAsArray',
+                description: 'Output [ step1Response, step2Response, ... ].',
+              },
+              {
+                name: 'All Responses as Object (Keyed by Alias)',
+                value: 'allAsObject',
+                description: 'Output { step1: { data, status }, step2: { ... } }.',
+              },
+              {
+                name: 'Last Step Only',
+                value: 'lastStepOnly',
+                description: 'Output data only from the final executed endpoint',
+              },
+              {
+                name: 'Merge Into Input Item',
+                value: 'mergeIntoInput',
+                description: 'Merge output properties into the incoming $JSON object',
+              },
+              {
+                name: 'Split Each Response to New Item',
+                value: 'splitToItems',
+                description: 'Emit an n8n item for each endpoint execution',
+              },
+            ],
+            default: 'allAsObject',
+            description: 'How the collected responses should be structured in n8n output',
+          },
+          {
+            displayName: 'Password',
+            name: 'basicAuthPass',
             type: 'string',
+            typeOptions: { password: true },
             displayOptions: {
               show: {
                 authType: ['basic'],
@@ -559,10 +582,16 @@ export class FoxSchemaMultiEndpoints implements INodeType {
             default: '',
           },
           {
-            displayName: 'Password',
-            name: 'basicAuthPass',
+            displayName: 'Timeout (Ms)',
+            name: 'timeoutMs',
+            type: 'number',
+            default: 500,
+            description: 'Global request timeout in milliseconds (default: 500ms)',
+          },
+          {
+            displayName: 'Username',
+            name: 'basicAuthUser',
             type: 'string',
-            typeOptions: { password: true },
             displayOptions: {
               show: {
                 authType: ['basic'],
@@ -587,12 +616,12 @@ export class FoxSchemaMultiEndpoints implements INodeType {
         const rawEndpoints = this.getNodeParameter(
           'endpoints.endpointValues',
           itemIndex,
-          []
+          [],
         ) as any[];
         const globalConfig = this.getNodeParameter(
           'globalSettings',
           itemIndex,
-          {}
+          {},
         ) as Record<string, any>;
 
         const globalTimeout = (this.getNodeParameter('timeoutMs', itemIndex, 500) ??
@@ -616,7 +645,7 @@ export class FoxSchemaMultiEndpoints implements INodeType {
         const topResponseMode = this.getNodeParameter(
           'responseMode',
           itemIndex,
-          ''
+          '',
         ) as string;
         const outputMode = (topResponseMode ||
           globalConfig.outputMode ||
@@ -657,7 +686,7 @@ export class FoxSchemaMultiEndpoints implements INodeType {
           throw new NodeOperationError(
             this.getNode(),
             'At least one endpoint must be defined in Fox Multi-Endpoint Pipe',
-            { itemIndex }
+            { itemIndex },
           );
         }
 
@@ -680,17 +709,19 @@ export class FoxSchemaMultiEndpoints implements INodeType {
           for (let sIdx = 0; sIdx < endpoints.length; sIdx++) {
             const ep = endpoints[sIdx];
 
-            if (sIdx > 0 && globalSettings.delayBetweenStepsMs && globalSettings.delayBetweenStepsMs > 0) {
-              await new Promise((res) =>
-                setTimeout(res, globalSettings.delayBetweenStepsMs)
-              );
+            if (
+              sIdx > 0 &&
+              globalSettings.delayBetweenStepsMs &&
+              globalSettings.delayBetweenStepsMs > 0
+            ) {
+              await sleep(globalSettings.delayBetweenStepsMs);
             }
 
             const stepResult = await executeSingleEndpoint(
               ep,
               context,
               globalSettings,
-              httpHelper
+              httpHelper,
             );
 
             context.pipeline[stepResult.alias] = stepResult;
@@ -705,7 +736,7 @@ export class FoxSchemaMultiEndpoints implements INodeType {
           for (let i = 0; i < endpoints.length; i += concurrency) {
             const batch = endpoints.slice(i, i + concurrency);
             const batchPromises = batch.map((ep) =>
-              executeSingleEndpoint(ep, context, globalSettings, httpHelper)
+              executeSingleEndpoint(ep, context, globalSettings, httpHelper),
             );
             const settled = await Promise.allSettled(batchPromises);
 
@@ -733,7 +764,7 @@ export class FoxSchemaMultiEndpoints implements INodeType {
                   throw new NodeOperationError(
                     this.getNode(),
                     `Parallel endpoint "${ep.alias}" failed: ${res.reason?.message || res.reason}`,
-                    { itemIndex }
+                    { itemIndex },
                   );
                 }
               }
@@ -745,7 +776,7 @@ export class FoxSchemaMultiEndpoints implements INodeType {
         const formattedItems = formatExecutionOutput(
           context,
           outputMode,
-          items[itemIndex]
+          items[itemIndex],
         );
         returnData.push(...formattedItems);
       } catch (error: any) {
@@ -758,7 +789,9 @@ export class FoxSchemaMultiEndpoints implements INodeType {
           });
           continue;
         }
-        throw error;
+        throw new NodeOperationError(this.getNode(), error as Error, {
+          itemIndex,
+        });
       }
     }
 
@@ -769,99 +802,108 @@ export class FoxSchemaMultiEndpoints implements INodeType {
 function formatExecutionOutput(
   context: PipelineRuntimeContext,
   outputMode: OutputAggregationMode,
-  originalItem: INodeExecutionData
+  originalItem: INodeExecutionData,
 ): INodeExecutionData[] {
-    switch (outputMode) {
-      case 'firstResponse': {
-        const firstStep = context.steps[0];
-        const rawData = firstStep?.data !== undefined ? firstStep.data : {};
-        const json =
-          typeof rawData === 'object' && rawData !== null ? rawData : { data: rawData };
-        return [
-          {
-            json,
-            pairedItem: { item: context.itemIndex },
-          },
-        ];
-      }
+  switch (outputMode) {
+    case 'firstResponse': {
+      const firstStep = context.steps[0];
+      const rawData = firstStep?.data !== undefined ? firstStep.data : {};
+      const json =
+        typeof rawData === 'object' && rawData !== null
+          ? rawData
+          : { data: rawData };
+      return [
+        {
+          json,
+          pairedItem: { item: context.itemIndex },
+        },
+      ];
+    }
 
-      case 'lastResponse':
-      case 'lastStepOnly': {
-        const lastStep = context.prev || context.steps[context.steps.length - 1];
-        const rawData = lastStep?.data !== undefined ? lastStep.data : {};
-        const json =
-          typeof rawData === 'object' && rawData !== null ? rawData : { data: rawData };
-        return [
-          {
-            json,
-            pairedItem: { item: context.itemIndex },
-          },
-        ];
-      }
+    case 'lastResponse':
+    case 'lastStepOnly': {
+      const lastStep =
+        context.prev || context.steps[context.steps.length - 1];
+      const rawData = lastStep?.data !== undefined ? lastStep.data : {};
+      const json =
+        typeof rawData === 'object' && rawData !== null
+          ? rawData
+          : { data: rawData };
+      return [
+        {
+          json,
+          pairedItem: { item: context.itemIndex },
+        },
+      ];
+    }
 
-      case 'allAsArray': {
-        return [
-          {
-            json: {
-              results: context.steps.map((s) => ({
-                alias: s.alias,
-                statusCode: s.statusCode,
-                success: s.success,
-                data: s.data,
-                error: s.error,
-                durationMs: s.durationMs,
-              })),
-            },
-            pairedItem: { item: context.itemIndex },
-          },
-        ];
-      }
-
-      case 'splitToItems': {
-        return context.steps.map((s) => ({
+    case 'allAsArray': {
+      return [
+        {
           json: {
-            alias: s.alias,
-            statusCode: s.statusCode,
-            success: s.success,
-            data: s.data,
-            error: s.error,
+            results: context.steps.map((s) => ({
+              alias: s.alias,
+              statusCode: s.statusCode,
+              success: s.success,
+              data: s.data,
+              error: s.error,
+              durationMs: s.durationMs,
+            })),
           },
           pairedItem: { item: context.itemIndex },
-        }));
-      }
-
-      case 'mergeIntoInput': {
-        const merged: Record<string, any> = { ...originalItem.json };
-        for (const s of context.steps) {
-          merged[s.alias] = s.data;
-        }
-        return [
-          {
-            json: merged,
-            pairedItem: { item: context.itemIndex },
-          },
-        ];
-      }
-
-      case 'mergeAllToObject':
-      case 'allAsObject':
-      default: {
-        const objOutput: Record<string, any> = {};
-        for (const s of context.steps) {
-          objOutput[s.alias] = {
-            statusCode: s.statusCode,
-            success: s.success,
-            data: s.data,
-            durationMs: s.durationMs,
-            ...(s.error ? { error: s.error } : {}),
-          };
-        }
-        return [
-          {
-            json: objOutput,
-            pairedItem: { item: context.itemIndex },
-          },
-        ];
-      }
+        },
+      ];
     }
+
+    case 'splitToItems': {
+      return context.steps.map((s) => ({
+        json: {
+          alias: s.alias,
+          statusCode: s.statusCode,
+          success: s.success,
+          data: s.data,
+          error: s.error,
+          durationMs: s.durationMs,
+        },
+        pairedItem: { item: context.itemIndex },
+      }));
+    }
+
+    case 'mergeIntoInput': {
+      const stepMap: Record<string, any> = {};
+      for (const s of context.steps) {
+        stepMap[s.alias] = s.data;
+      }
+      return [
+        {
+          json: {
+            ...originalItem.json,
+            ...stepMap,
+          },
+          pairedItem: { item: context.itemIndex },
+        },
+      ];
+    }
+
+    case 'mergeAllToObject':
+    case 'allAsObject':
+    default: {
+      const outputObj: Record<string, any> = {};
+      for (const s of context.steps) {
+        outputObj[s.alias] = {
+          statusCode: s.statusCode,
+          success: s.success,
+          data: s.data,
+          error: s.error,
+          durationMs: s.durationMs,
+        };
+      }
+      return [
+        {
+          json: outputObj,
+          pairedItem: { item: context.itemIndex },
+        },
+      ];
+    }
+  }
 }

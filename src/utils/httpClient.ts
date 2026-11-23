@@ -1,3 +1,4 @@
+import { sleep } from 'n8n-workflow';
 import {
   EndpointDefinition,
   EndpointExecutionResult,
@@ -203,7 +204,7 @@ export async function executeSingleEndpoint(
     } catch (err: any) {
       lastError = err;
       if (attempt < maxAttempts) {
-        await new Promise((res) => setTimeout(res, retryDelay * attempt));
+        await sleep(retryDelay * attempt);
       }
     }
   }
